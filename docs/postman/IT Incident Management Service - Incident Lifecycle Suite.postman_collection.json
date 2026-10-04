@@ -1,0 +1,2707 @@
+{
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "// Automatically generate standard W3C traceparent (ADR-010) and X-Trace-Id",
+          "function generateHex(len) {",
+          "    let result = '';",
+          "    const chars = '0123456789abcdef';",
+          "    for (let i = 0; i < len; i++) {",
+          "        result += chars.charAt(Math.floor(Math.random() * chars.length));",
+          "    }",
+          "    return result;",
+          "}",
+          "const traceId = generateHex(32);",
+          "const spanId = generateHex(16);",
+          "const traceparent = `00-${traceId}-${spanId}-01`;",
+          "pm.request.headers.upsert({ key: 'traceparent', value: traceparent });",
+          "pm.request.headers.upsert({ key: 'X-Trace-Id', value: traceId });",
+          "pm.environment.set('currentTraceId', traceId);"
+        ],
+        "type": "text/javascript"
+      }
+    }
+  ],
+  "info": {
+    "_exporter_id": "39879181",
+    "_postman_id": "a7c9e1b3-5d6f-4a8b-9c0d-2e4f6a8b0c1d",
+    "description": "Enterprise-grade E2E Postman Suite for the IT Incident Management Service Domain (BIAN-aligned, ADR-001/005/013/019/030/031/032/033). Opens an incident (priority derived from impact and urgency, SLA targets pending), updates it (the priority is re-derived), assigns, acknowledges (the response SLA is met), starts, holds with a reason, resumes, comments publicly and internally, resolves with a code and notes, reopens, resolves again and closes, and reads the audit ledger in order. A second folder proves self-service: a REQUESTER files on their own behalf, sees only their own incidents and no internal notes, cannot work an incident or read its audit trail (403 ERR-INC-00403), and another tenant or another requester gets a 404. Negative cases cover validation, illegal transitions (409), closed incidents refusing change, tenant isolation and the absence of DELETE, with RFC 7807 error_code assertions. It files its own incidents under its own generated tenant id (incOrganisationId), so it needs no organisationId from the Party Reference Data Directory.",
+    "name": "IT Incident Management Service - Incident Lifecycle Suite",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "item": [
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Health status is UP', () => pm.expect(pm.response.json().status).to.eql('UP'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "Health Check (Aggregated)",
+          "request": {
+            "header": [],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ],
+              "raw": "{{base_url}}/health"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Liveness status is UP or UNKNOWN (no probe contributors registered)', () => pm.expect(['UP', 'UNKNOWN']).to.include(pm.response.json().status));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "Liveness Probe",
+          "request": {
+            "header": [],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health",
+                "liveness"
+              ],
+              "raw": "{{base_url}}/health/liveness"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Readiness status is UP', () => pm.expect(pm.response.json().status).to.eql('UP'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "Readiness Probe",
+          "request": {
+            "header": [],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health",
+                "readiness"
+              ],
+              "raw": "{{base_url}}/health/readiness"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Contains JVM metrics', () => pm.expect(pm.response.text()).to.include('jvm_memory'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "Prometheus Metrics",
+          "request": {
+            "header": [],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "prometheus"
+              ],
+              "raw": "{{base_url}}/prometheus"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns Swagger UI HTML', () => pm.expect(pm.response.text()).to.include('swagger-ui'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "Swagger UI",
+          "request": {
+            "header": [],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "swagger-ui",
+                "index.html"
+              ],
+              "raw": "{{base_url}}/swagger-ui/index.html"
+            }
+          }
+        }
+      ],
+      "name": "00. Infrastructure & Telemetry"
+    },
+    {
+      "item": [
+        {
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.environment.set('incOrganisationId', pm.variables.replaceIn('{{$guid}}'));",
+                  "pm.environment.set('incStaffRequesterId', pm.variables.replaceIn('{{$guid}}'));",
+                  "pm.environment.set('incUserId', pm.variables.replaceIn('{{$guid}}'));",
+                  "pm.environment.set('incAssigneeId', pm.variables.replaceIn('{{$guid}}'));",
+                  "pm.environment.set('incAssetId', pm.variables.replaceIn('{{$guid}}'));"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201 Created', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('NEW, priority derived as P2, both SLA targets pending', () => {",
+                  "    pm.expect(json.status).to.eql('NEW');",
+                  "    pm.expect(json.priority).to.eql('P2');",
+                  "    pm.expect(json.response.state).to.eql('PENDING');",
+                  "    pm.expect(json.resolution.state).to.eql('PENDING');",
+                  "    pm.expect(json.affectedAssetIds).to.eql([pm.environment.get('incAssetId')]);",
+                  "});",
+                  "pm.environment.set('incidentId', json.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "01. Initiate Incident (staff, impact HIGH x urgency MEDIUM = P2, one affected asset)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Core switch down\",\n  \"description\": \"No link on floor 3\",\n  \"impact\": \"HIGH\",\n  \"urgency\": \"MEDIUM\",\n  \"requesterId\": \"{{incStaffRequesterId}}\",\n  \"affectedAssetIds\": [\"{{incAssetId}}\"]\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Same incident', () => pm.expect(pm.response.json().id).to.eql(pm.environment.get('incidentId')));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "02. Retrieve Incident By ID",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Contains the incident', () => pm.expect(pm.response.json().map(i => i.id)).to.include(pm.environment.get('incidentId')));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "03. Retrieve Incidents (collection, priority=P2 and openOnly)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "retrieve"
+              ],
+              "query": [
+                {
+                  "key": "priority",
+                  "value": "P2"
+                },
+                {
+                  "key": "openOnly",
+                  "value": "true"
+                }
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/retrieve?priority=P2&openOnly=true"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Exactly the incident on that asset', () => pm.expect(pm.response.json().map(i => i.id)).to.eql([pm.environment.get('incidentId')]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "04. Retrieve Incidents (collection, by affected asset)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "retrieve"
+              ],
+              "query": [
+                {
+                  "key": "assetId",
+                  "value": "{{incAssetId}}"
+                }
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/retrieve?assetId={{incAssetId}}"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "05. Update: impact HIGH x urgency HIGH re-derives the priority (204)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Core switch down\",\n  \"description\": \"The whole site is offline\",\n  \"impact\": \"HIGH\",\n  \"urgency\": \"HIGH\",\n  \"affectedAssetIds\": [\"{{incAssetId}}\"]\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "update"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/update"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Status is NEW', () => pm.expect(pm.response.json().status).to.eql('NEW'));",
+                  "pm.test('P1', () => pm.expect(pm.response.json().priority).to.eql('P1'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "06. Retrieve (priority is now P1)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "07. Assignment: name who works it (204)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assigneeId\": \"{{incAssigneeId}}\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "assignment",
+                "update"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/assignment/update"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "08. Control: acknowledge (NEW -> ACKNOWLEDGED)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "control",
+                "acknowledge"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/control/acknowledge"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Status is ACKNOWLEDGED', () => pm.expect(pm.response.json().status).to.eql('ACKNOWLEDGED'));",
+                  "pm.test('Response SLA met, assignee set', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.response.state).to.eql('MET');",
+                  "    pm.expect(json.assigneeId).to.eql(pm.environment.get('incAssigneeId'));",
+                  "    pm.expect(json.acknowledgedAt).to.not.be.undefined;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "09. Retrieve (ACKNOWLEDGED, the response SLA is met)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "10. Control: start (ACKNOWLEDGED -> IN_PROGRESS)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "control",
+                "start"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/control/start"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "11. Control: hold (IN_PROGRESS -> ON_HOLD, with a reason)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Waiting for the vendor\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "control",
+                "hold"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/control/hold"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Status is ON_HOLD', () => pm.expect(pm.response.json().status).to.eql('ON_HOLD'));",
+                  "pm.test('Hold reason kept', () => pm.expect(pm.response.json().holdReason).to.eql('Waiting for the vendor'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "12. Retrieve (ON_HOLD with its reason)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "13. Control: resume (ON_HOLD -> IN_PROGRESS)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "control",
+                "resume"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/control/resume"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201 Created', () => pm.response.to.have.status(201));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "14. Comment: public",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"We are on it\",\n  \"internal\": false\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "comment",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/comment/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201 Created', () => pm.response.to.have.status(201));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "15. Comment: internal note (staff only)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"The vendor contact is on leave\",\n  \"internal\": true\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "comment",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/comment/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "16. Control: resolve (IN_PROGRESS -> RESOLVED, with a code and notes)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolutionCode\": \"REPLACED\",\n  \"notes\": \"Swapped the faulty switch\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "control",
+                "resolve"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/control/resolve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Status is RESOLVED', () => pm.expect(pm.response.json().status).to.eql('RESOLVED'));",
+                  "pm.test('Resolution recorded and SLA met', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.resolutionCode).to.eql('REPLACED');",
+                  "    pm.expect(json.resolution.state).to.eql('MET');",
+                  "    pm.expect(json.comments).to.have.lengthOf(2);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "17. Retrieve (RESOLVED, resolution SLA met, both comments visible to staff)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "18. Control: reopen (RESOLVED -> IN_PROGRESS, with a reason)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Still failing after the swap\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "control",
+                "reopen"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/control/reopen"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Status is IN_PROGRESS', () => pm.expect(pm.response.json().status).to.eql('IN_PROGRESS'));",
+                  "pm.test('Reopened once', () => pm.expect(pm.response.json().reopenCount).to.eql(1));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "19. Retrieve (reopened, counted)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "20. Control: resolve again",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolutionCode\": \"REPLACED\",\n  \"notes\": \"Swapped the cable as well\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "control",
+                "resolve"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/control/resolve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "21. Control: close (RESOLVED -> CLOSED, terminal)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "control",
+                "close"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/control/close"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Ledger reads in order', () => pm.expect(json.map(e => e.action)).to.eql(['INITIATED', 'UPDATED', 'ASSIGNED', 'ACKNOWLEDGED', 'WORK_STARTED', 'PUT_ON_HOLD', 'WORK_RESUMED', 'COMMENT_ADDED', 'COMMENT_ADDED', 'RESOLVED', 'REOPENED', 'RESOLVED', 'CLOSED']));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "22. Retrieve Audit Ledger (every step, in order)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "audit-log",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/audit-log/retrieve"
+            }
+          }
+        }
+      ],
+      "name": "01. Incident Lifecycle & SLA (BIAN Behavior Qualifiers)"
+    },
+    {
+      "item": [
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201 Created', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('Filed on the caller behalf, priority P4', () => {",
+                  "    pm.expect(json.requesterId).to.eql(pm.environment.get('incUserId'));",
+                  "    pm.expect(json.priority).to.eql('P4');",
+                  "});",
+                  "pm.environment.set('reqIncidentId', json.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "01. Initiate as REQUESTER: the requester is the caller, whatever the body says",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"My laptop will not boot\",\n  \"description\": \"Black screen since this morning\",\n  \"impact\": \"LOW\",\n  \"urgency\": \"MEDIUM\",\n  \"requesterId\": \"{{incStaffRequesterId}}\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{incUserId}}"
+              },
+              {
+                "key": "X-Role",
+                "value": "REQUESTER"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201 Created', () => pm.response.to.have.status(201));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "02. Staff adds an internal note to it",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Probably the drive; do not promise a swap\",\n  \"internal\": true\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{reqIncidentId}}",
+                "comment",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{reqIncidentId}}/comment/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201 Created', () => pm.response.to.have.status(201));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "03. REQUESTER comments: an internal flag is ignored",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"It also beeps twice\",\n  \"internal\": true\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{incUserId}}"
+              },
+              {
+                "key": "X-Role",
+                "value": "REQUESTER"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{reqIncidentId}}",
+                "comment",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{reqIncidentId}}/comment/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Only the public comment', () => {",
+                  "    pm.expect(json.comments).to.have.lengthOf(1);",
+                  "    pm.expect(json.comments[0].text).to.eql('It also beeps twice');",
+                  "    pm.expect(json.comments[0].internal).to.eql(false);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "04. REQUESTER reads their incident: the internal note is hidden, their own comment is there",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{incUserId}}"
+              },
+              {
+                "key": "X-Role",
+                "value": "REQUESTER"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{reqIncidentId}}",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{reqIncidentId}}/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Exactly one, theirs', () => pm.expect(pm.response.json().map(i => i.id)).to.eql([pm.environment.get('reqIncidentId')]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "05. REQUESTER lists: only their own incidents",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{incUserId}}"
+              },
+              {
+                "key": "X-Role",
+                "value": "REQUESTER"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Both', () => pm.expect(pm.response.json().map(i => i.id)).to.include.members([pm.environment.get('incidentId'), pm.environment.get('reqIncidentId')]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "06. Staff lists: sees both incidents of the tenant",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-INC-00404', () => {",
+                  "    pm.expect(json.status).to.eql(404);",
+                  "    pm.expect(json.error_code).to.eql('ERR-INC-00404');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "07. REQUESTER cannot read someone else's incident (404, like a missing one)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{incUserId}}"
+              },
+              {
+                "key": "X-Role",
+                "value": "REQUESTER"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-INC-00404', () => {",
+                  "    pm.expect(json.status).to.eql(404);",
+                  "    pm.expect(json.error_code).to.eql('ERR-INC-00404');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "08. REQUESTER cannot comment on someone else's incident (404)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"hello\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{incUserId}}"
+              },
+              {
+                "key": "X-Role",
+                "value": "REQUESTER"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "comment",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/comment/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.response.to.have.status(403));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-INC-00403', () => {",
+                  "    pm.expect(json.status).to.eql(403);",
+                  "    pm.expect(json.error_code).to.eql('ERR-INC-00403');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "09. REQUESTER cannot acknowledge (403, a staff action)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{incUserId}}"
+              },
+              {
+                "key": "X-Role",
+                "value": "REQUESTER"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{reqIncidentId}}",
+                "control",
+                "acknowledge"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{reqIncidentId}}/control/acknowledge"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.response.to.have.status(403));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-INC-00403', () => {",
+                  "    pm.expect(json.status).to.eql(403);",
+                  "    pm.expect(json.error_code).to.eql('ERR-INC-00403');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "10. REQUESTER cannot cancel (403)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{incUserId}}"
+              },
+              {
+                "key": "X-Role",
+                "value": "REQUESTER"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{reqIncidentId}}",
+                "control",
+                "cancel"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{reqIncidentId}}/control/cancel"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.response.to.have.status(403));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-INC-00403', () => {",
+                  "    pm.expect(json.status).to.eql(403);",
+                  "    pm.expect(json.error_code).to.eql('ERR-INC-00403');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "11. REQUESTER cannot read the audit trail (403)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{incUserId}}"
+              },
+              {
+                "key": "X-Role",
+                "value": "REQUESTER"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{reqIncidentId}}",
+                "audit-log",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{reqIncidentId}}/audit-log/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "12. Staff cancels it (terminal, no SLA to meet)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{reqIncidentId}}",
+                "control",
+                "cancel"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{reqIncidentId}}/control/cancel"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Cancelled, no SLA', () => { pm.expect(json.status).to.eql('CANCELLED'); pm.expect(json.response).to.be.undefined; pm.expect(json.resolution).to.be.undefined; });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "13. Retrieve (CANCELLED has no SLA)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{reqIncidentId}}",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{reqIncidentId}}/retrieve"
+            }
+          }
+        }
+      ],
+      "name": "02. Self-Service (REQUESTER)"
+    },
+    {
+      "item": [
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "01. Initiate - Blank Title (400)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"\",\n  \"description\": \"d\",\n  \"impact\": \"LOW\",\n  \"urgency\": \"LOW\",\n  \"requesterId\": \"{{incStaffRequesterId}}\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "02. Initiate - Missing Impact (400)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"t\",\n  \"description\": \"d\",\n  \"urgency\": \"LOW\",\n  \"requesterId\": \"{{incStaffRequesterId}}\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "03. Initiate - Unknown Impact Value (400)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"t\",\n  \"description\": \"d\",\n  \"impact\": \"HUGE\",\n  \"urgency\": \"LOW\",\n  \"requesterId\": \"{{incStaffRequesterId}}\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "04. Initiate - Staff Must Name The Requester (400)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"t\",\n  \"description\": \"d\",\n  \"impact\": \"LOW\",\n  \"urgency\": \"LOW\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "05. Initiate - Missing X-Tenant-Id (400)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"t\",\n  \"description\": \"d\",\n  \"impact\": \"LOW\",\n  \"urgency\": \"LOW\",\n  \"requesterId\": \"{{incStaffRequesterId}}\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('negIncidentId', pm.response.json().id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "06. Setup: a fresh incident for the state-machine checks",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Printer jam\",\n  \"description\": \"Floor 2\",\n  \"impact\": \"LOW\",\n  \"urgency\": \"LOW\",\n  \"requesterId\": \"{{incStaffRequesterId}}\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 409', () => pm.response.to.have.status(409));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-INC-00409', () => {",
+                  "    pm.expect(json.status).to.eql(409);",
+                  "    pm.expect(json.error_code).to.eql('ERR-INC-00409');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "07. Start before acknowledging is an illegal transition (409)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{negIncidentId}}",
+                "control",
+                "start"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{negIncidentId}}/control/start"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "08. Hold needs a reason (400)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{negIncidentId}}",
+                "control",
+                "hold"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{negIncidentId}}/control/hold"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "09. Resolve needs notes (400)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolutionCode\": \"FIXED\",\n  \"notes\": \"\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{negIncidentId}}",
+                "control",
+                "resolve"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{negIncidentId}}/control/resolve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 409', () => pm.response.to.have.status(409));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-INC-00409', () => {",
+                  "    pm.expect(json.status).to.eql(409);",
+                  "    pm.expect(json.error_code).to.eql('ERR-INC-00409');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "10. Resolve a NEW incident is an illegal transition (409)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolutionCode\": \"FIXED\",\n  \"notes\": \"done\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{negIncidentId}}",
+                "control",
+                "resolve"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{negIncidentId}}/control/resolve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 409', () => pm.response.to.have.status(409));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-INC-00409', () => {",
+                  "    pm.expect(json.status).to.eql(409);",
+                  "    pm.expect(json.error_code).to.eql('ERR-INC-00409');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "11. Update a CLOSED incident is refused (409)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"t\",\n  \"description\": \"d\",\n  \"impact\": \"LOW\",\n  \"urgency\": \"LOW\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "update"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/update"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 409', () => pm.response.to.have.status(409));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-INC-00409', () => {",
+                  "    pm.expect(json.status).to.eql(409);",
+                  "    pm.expect(json.error_code).to.eql('ERR-INC-00409');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "12. Comment on a CLOSED incident is refused (409)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"late comment\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "comment",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/comment/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-INC-00404', () => {",
+                  "    pm.expect(json.status).to.eql(404);",
+                  "    pm.expect(json.error_code).to.eql('ERR-INC-00404');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "13. Retrieve - Non-existent UUID (404)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "00000000-0000-0000-0000-000000000000",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/00000000-0000-0000-0000-000000000000/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "14. Retrieve - Malformed UUID Path (400)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "not-a-uuid",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/not-a-uuid/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-INC-00404', () => {",
+                  "    pm.expect(json.status).to.eql(404);",
+                  "    pm.expect(json.error_code).to.eql('ERR-INC-00404');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "15. Retrieve - Another tenant's incident answers like a missing one (404)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "00000000-0000-0000-0000-000000000001"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{incidentId}}",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{incidentId}}/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-INC-00404', () => {",
+                  "    pm.expect(json.status).to.eql(404);",
+                  "    pm.expect(json.error_code).to.eql('ERR-INC-00404');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "16. Acknowledge - Another tenant cannot work it (404)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "00000000-0000-0000-0000-000000000001"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{negIncidentId}}",
+                "control",
+                "acknowledge"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{negIncidentId}}/control/acknowledge"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-INC-00404', () => {",
+                  "    pm.expect(json.status).to.eql(404);",
+                  "    pm.expect(json.error_code).to.eql('ERR-INC-00404');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "17. Comment - Another tenant (404)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"hello\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "00000000-0000-0000-0000-000000000001"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{negIncidentId}}",
+                "comment",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{negIncidentId}}/comment/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-INC-00404', () => {",
+                  "    pm.expect(json.status).to.eql(404);",
+                  "    pm.expect(json.error_code).to.eql('ERR-INC-00404');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "18. Audit log - Another tenant (404)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "00000000-0000-0000-0000-000000000001"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{negIncidentId}}",
+                "audit-log",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{negIncidentId}}/audit-log/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Not allowed', () => pm.expect([404, 405]).to.include(pm.response.code));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "19. Delete - There is no DELETE (404 or 405)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "DELETE",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "{{negIncidentId}}"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/{{negIncidentId}}"
+            }
+          }
+        }
+      ],
+      "name": "03. Negative Tests & Guarantees"
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8098"
+    }
+  ]
+}
