@@ -2693,6 +2693,202 @@
               "raw": "{{base_url}}/it-incident-management/v1/{{negIncidentId}}"
             }
           }
+        },
+        {
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.environment.set('incIdemKey', 'alert-' + pm.variables.replaceIn('{{$guid}}'));"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('incIdemId', pm.response.json().id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "20. Initiate with an idempotency key (201)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Health check down: Intranet\",\n  \"description\": \"d\",\n  \"impact\": \"LOW\",\n  \"urgency\": \"LOW\",\n  \"requesterId\": \"{{incStaffRequesterId}}\",\n  \"idempotencyKey\": \"{{incIdemKey}}\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('Same incident', () => pm.expect(pm.response.json().id).to.eql(pm.environment.get('incIdemId')));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "21. The same key again answers with the first incident, not another (201, same id)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Health check down: Intranet\",\n  \"description\": \"d\",\n  \"impact\": \"LOW\",\n  \"urgency\": \"LOW\",\n  \"requesterId\": \"{{incStaffRequesterId}}\",\n  \"idempotencyKey\": \"{{incIdemKey}}\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('Another incident', () => pm.expect(pm.response.json().id).to.not.eql(pm.environment.get('incIdemId')));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "22. The same key in another tenant opens its own incident (201, another id)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Health check down: Intranet\",\n  \"description\": \"d\",\n  \"impact\": \"LOW\",\n  \"urgency\": \"LOW\",\n  \"requesterId\": \"{{incStaffRequesterId}}\",\n  \"idempotencyKey\": \"{{incIdemKey}}\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "00000000-0000-0000-0000-000000000001"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "23. Initiate - Idempotency key over 100 characters (400)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"t\",\n  \"description\": \"d\",\n  \"impact\": \"LOW\",\n  \"urgency\": \"LOW\",\n  \"requesterId\": \"{{incStaffRequesterId}}\",\n  \"idempotencyKey\": \"kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{incOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-incident-management",
+                "v1",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-incident-management/v1/initiate"
+            }
+          }
         }
       ],
       "name": "03. Negative Tests & Guarantees"

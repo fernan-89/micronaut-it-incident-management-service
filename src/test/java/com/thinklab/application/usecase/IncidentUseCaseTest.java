@@ -103,7 +103,7 @@ class IncidentUseCaseTest {
     @Test
     @DisplayName("staff open an incident for a named requester; the priority and due dates come from impact, urgency and the configured targets")
     void initiateByStaff() {
-        var request = new InitiateIncidentRequest("Core down", "Everything", Impact.HIGH, Urgency.HIGH, Set.of(UUID.randomUUID()), null, requesterId);
+        var request = new InitiateIncidentRequest("Core down", "Everything", Impact.HIGH, Urgency.HIGH, Set.of(UUID.randomUUID()), null, requesterId, null);
         when(hashServicePort.generateSovereignId("incident-creation")).thenReturn(Mono.just(UUID.randomUUID()));
         when(incidentRepository.create(any(Incident.class))).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
 
@@ -120,8 +120,8 @@ class IncidentUseCaseTest {
     @Test
     @DisplayName("staff must say who the requester is; a REQUESTER is always themselves, whatever the body says")
     void initiateRequesterRules() {
-        var withoutRequester = new InitiateIncidentRequest("t", "d", Impact.LOW, Urgency.LOW, null, null, null);
-        var spoofed = new InitiateIncidentRequest("t", "d", Impact.LOW, Urgency.LOW, null, null, UUID.randomUUID());
+        var withoutRequester = new InitiateIncidentRequest("t", "d", Impact.LOW, Urgency.LOW, null, null, null, null);
+        var spoofed = new InitiateIncidentRequest("t", "d", Impact.LOW, Urgency.LOW, null, null, UUID.randomUUID(), null);
         InitiateIncidentUseCase useCase = new InitiateIncidentUseCase(hashServicePort, incidentRepository, sla);
         when(hashServicePort.generateSovereignId("incident-creation")).thenReturn(Mono.just(UUID.randomUUID()));
         when(incidentRepository.create(any(Incident.class))).thenAnswer(inv -> Mono.just(inv.getArgument(0)));

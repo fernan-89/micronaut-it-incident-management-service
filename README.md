@@ -33,7 +33,7 @@ a REQUESTER); `X-Role` is optional and, with platform security on, comes from th
 
 | Behavior Qualifier | Route |
 |---|---|
-| initiate | `POST /it-incident-management/v1/initiate` `{"title":"Core switch down","description":"No link on floor 3","impact":"HIGH","urgency":"MEDIUM","requesterId":"<uuid>","affectedAssetIds":["<uuid>"],"relatedChangeIds":[]}` |
+| initiate | `POST /it-incident-management/v1/initiate` `{"title":"Core switch down","description":"No link on floor 3","impact":"HIGH","urgency":"MEDIUM","requesterId":"<uuid>","affectedAssetIds":["<uuid>"],"relatedChangeIds":[]}` (optional `"idempotencyKey"`, staff only: a repeat answers with the first incident, ADR-034) |
 | retrieve | `GET /it-incident-management/v1/{id}/retrieve` |
 | retrieve (collection) | `GET /it-incident-management/v1/retrieve?status=&priority=&assigneeId=&assetId=&openOnly=` |
 | update | `PUT /it-incident-management/v1/{id}/update` (title, description, impact, urgency, links; not once resolved) |
@@ -79,7 +79,7 @@ Do not put personal data in a title, a description or a comment: they are stored
 
 001 hexagonal architecture · 005 UUID identity sovereignty and audit tracing · 013 BIAN conventions · 019 HTTP 409 for state conflicts ·
 030 priority derived from impact and urgency · 031 requester self-service scoping · 032 SLA computed when read · 033 links are references,
-writes are guarded.
+writes are guarded · 034 idempotency key on initiate.
 
 ## License
 

@@ -18,6 +18,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -38,7 +39,7 @@ class IncidentIndexInitializerTest {
     }
 
     @Test
-    @DisplayName("startup creates the four incident indexes in the database named by mongodb.uri, each matching a real query")
+    @DisplayName("startup creates the five incident indexes in the database named by mongodb.uri, each matching a real query")
     void createsIndexes() {
         MongoClient client = mock(MongoClient.class);
         MongoCollection<Document> collection = collectionIn(client, "tenant_inc");
@@ -48,14 +49,17 @@ class IncidentIndexInitializerTest {
 
         ArgumentCaptor<Document> keys = ArgumentCaptor.forClass(Document.class);
         ArgumentCaptor<IndexOptions> options = ArgumentCaptor.forClass(IndexOptions.class);
-        verify(collection, times(4)).createIndex(keys.capture(), options.capture());
+        verify(collection, times(5)).createIndex(keys.capture(), options.capture());
         assertEquals(List.of(
                 new Document("organisationId", 1).append("status", 1).append("priority", 1),
                 new Document("organisationId", 1).append("assigneeId", 1),
                 new Document("organisationId", 1).append("requesterId", 1),
-                new Document("organisationId", 1).append("affectedAssetIds", 1)), keys.getAllValues());
+                new Document("organisationId", 1).append("affectedAssetIds", 1),
+                new Document("organisationId", 1).append("idempotencyKey", 1)), keys.getAllValues());
+        assertTrue(options.getAllValues().get(4).isUnique());
+        assertEquals(new Document("idempotencyKey", new Document("$type", "string")), options.getAllValues().get(4).getPartialFilterExpression());
         assertEquals(List.of(IncidentIndexInitializer.QUEUE_INDEX, IncidentIndexInitializer.ASSIGNEE_INDEX,
-                IncidentIndexInitializer.REQUESTER_INDEX, IncidentIndexInitializer.ASSET_INDEX), options.getAllValues().stream().map(IndexOptions::getName).toList());
+                IncidentIndexInitializer.REQUESTER_INDEX, IncidentIndexInitializer.ASSET_INDEX, IncidentIndexInitializer.IDEMPOTENCY_INDEX), options.getAllValues().stream().map(IndexOptions::getName).toList());
     }
 
     @Test
@@ -67,7 +71,7 @@ class IncidentIndexInitializerTest {
 
         new IncidentIndexInitializer(client, "mongodb://mongo:27017").onApplicationEvent(startup);
 
-        verify(collection, times(4)).createIndex(any(), any(IndexOptions.class));
+        verify(collection, times(5)).createIndex(any(), any(IndexOptions.class));
     }
 
     @Test
@@ -81,7 +85,7 @@ class IncidentIndexInitializerTest {
                 .thenReturn(Mono.just("ok"));
 
         assertDoesNotThrow(() -> new IncidentIndexInitializer(client, "mongodb://mongo:27017/inc_db", Duration.ofSeconds(1)).onApplicationEvent(startup));
-        verify(collection, times(4)).createIndex(any(), any(IndexOptions.class));
+        verify(collection, times(5)).createIndex(any(), any(IndexOptions.class));
     }
 
     @Test

@@ -185,4 +185,24 @@ class IncidentPersistenceIT implements TestPropertyProvider {
         assertTrue(keys.contains(new Document("organisationId", 1).append("requesterId", 1)));
         assertTrue(keys.contains(new Document("organisationId", 1).append("affectedAssetIds", 1)));
     }
+
+    @Test
+    @DisplayName("ONE incident per key: a second insert under the same key returns the first, even from many writers at once; another organisation's key is its own")
+    void idempotencyKey() {
+        UUID organisation = UUID.randomUUID();
+        UUID requester = UUID.randomUUID();
+
+        List<UUID> opened = Flux.range(0, 8).flatMap(i -> incidents.createIdempotent(newIncident(organisation, requester, null), "alert-1")).map(Incident::getId).collectList().block();
+
+        assertEquals(1, Set.copyOf(opened).size());
+        assertEquals(1, incidents.findAll(organisation, new IncidentRepository.Filter(null, null, null, null, null, false)).collectList().block().size());
+        assertEquals(opened.get(0), incidents.findByIdempotencyKey(organisation, "alert-1").block().getId());
+        assertNull(incidents.findByIdempotencyKey(organisation, "alert-2").block());
+        assertNull(incidents.findByIdempotencyKey(UUID.randomUUID(), "alert-1").block());
+        Incident other = incidents.createIdempotent(newIncident(UUID.randomUUID(), requester, null), "alert-1").block();
+        assertTrue(!opened.contains(other.getId()));
+        incidents.create(newIncident(organisation, requester, null)).block();
+        incidents.create(newIncident(organisation, requester, null)).block();
+        assertEquals(3, incidents.findAll(organisation, new IncidentRepository.Filter(null, null, null, null, null, false)).collectList().block().size());
+    }
 }

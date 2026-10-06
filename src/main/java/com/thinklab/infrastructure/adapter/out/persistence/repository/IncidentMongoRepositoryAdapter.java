@@ -2,6 +2,7 @@ package com.thinklab.infrastructure.adapter.out.persistence.repository;
 
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
+import com.mongodb.MongoWriteException;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.Updates;
 import com.mongodb.reactivestreams.client.MongoClient;
@@ -45,6 +46,7 @@ public class IncidentMongoRepositoryAdapter implements IncidentRepository {
     private static final Logger log = LoggerFactory.getLogger(IncidentMongoRepositoryAdapter.class);
     static final String DEFAULT_DATABASE = "thinklab_it_incident_management_db";
     static final String COLLECTION_NAME = "incidents";
+    static final int DUPLICATE_KEY = 11000;
     private static final String FIELD_ID = "_id";
     private static final String FIELD_ORGANISATION = "organisationId";
     private static final String FIELD_STATUS = "status";
@@ -76,6 +78,22 @@ public class IncidentMongoRepositoryAdapter implements IncidentRepository {
         log.debug("[PERSISTENCE] Monolithic create for Incident Aggregate: {}", incident.getId());
 
         return Mono.from(getCollection().insertOne(IncidentPersistenceMapper.toDocument(incident))).map(result -> incident);
+    }
+
+    @Override
+    public Mono<Incident> createIdempotent(Incident incident, String idempotencyKey) {
+        IncidentDocument document = IncidentPersistenceMapper.toDocument(incident);
+        document.setIdempotencyKey(idempotencyKey);
+
+        return Mono.from(getCollection().insertOne(document)).map(result -> incident)
+                .onErrorResume(MongoWriteException.class, error -> error.getError().getCode() == DUPLICATE_KEY
+                        ? findByIdempotencyKey(incident.getOrganisationId(), idempotencyKey).switchIfEmpty(Mono.error(error)) : Mono.error(error));
+    }
+
+    @Override
+    public Mono<Incident> findByIdempotencyKey(UUID organisationId, String idempotencyKey) {
+        return Mono.from(getCollection().find(Filters.and(Filters.eq(FIELD_ORGANISATION, organisationId), Filters.eq("idempotencyKey", idempotencyKey))).first())
+                .map(IncidentPersistenceMapper::toDomain);
     }
 
     @Override

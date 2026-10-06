@@ -3,6 +3,7 @@ package com.thinklab.application.usecase;
 import com.thinklab.application.dto.request.InitiateIncidentRequest;
 import com.thinklab.application.dto.response.IncidentResponse;
 import com.thinklab.application.mapper.IncidentMapper;
+import com.thinklab.domain.model.Incident;
 import com.thinklab.domain.model.Incident.Priority;
 import com.thinklab.domain.port.HashServicePort;
 import com.thinklab.domain.repository.IncidentRepository;
@@ -40,12 +41,21 @@ public class InitiateIncidentUseCase {
     public Mono<IncidentResponse> execute(UUID organisationId, InitiateIncidentRequest request, String executor, String role) {
         log.info("[USE CASE] Opening an Incident for organisation: {}", organisationId);
 
-        return Mono.fromCallable(() -> resolveRequesterId(request, executor, role))
+        String key = idempotencyKey(request, role);
+        Mono<Incident> opened = Mono.defer(() -> Mono.fromCallable(() -> resolveRequesterId(request, executor, role))
                 .flatMap(requesterId -> hashServicePort.generateSovereignId("incident-creation")
                         .map(sovereignId -> IncidentMapper.toDomain(request, sovereignId, organisationId, requesterId,
                                 slaProperties.targetsFor(Priority.of(request.impact(), request.urgency())), executor)))
-                .flatMap(incidentRepository::create)
-                .map(incident -> IncidentMapper.toResponse(incident, true, Instant.now()));
+                .flatMap(incident -> key == null ? incidentRepository.create(incident) : incidentRepository.createIdempotent(incident, key)));
+        Mono<Incident> incident = key == null ? opened : incidentRepository.findByIdempotencyKey(organisationId, key).switchIfEmpty(opened);
+
+        return incident.map(found -> IncidentMapper.toResponse(found, true, Instant.now()));
+    }
+
+    /** Only staff may use a key (a REQUESTER could otherwise read back someone else's incident by guessing one); a blank key is no key. */
+    private static String idempotencyKey(InitiateIncidentRequest request, String role) {
+        boolean usable = !IncidentWorkflow.REQUESTER_ROLE.equals(role) && request.idempotencyKey() != null && !request.idempotencyKey().isBlank();
+        return usable ? request.idempotencyKey().trim() : null;
     }
 
     private static UUID resolveRequesterId(InitiateIncidentRequest request, String executor, String role) {

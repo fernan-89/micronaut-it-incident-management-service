@@ -25,6 +25,12 @@ public interface IncidentRepository {
 
     Mono<Incident> findById(UUID id, UUID organisationId);
 
+    /** Opens an incident under a key that is unique per organisation: a second call with the same key (even a simultaneous one) gets the first incident back. */
+    Mono<Incident> createIdempotent(Incident incident, String idempotencyKey);
+
+    /** The incident a key opened, if any. */
+    Mono<Incident> findByIdempotencyKey(UUID organisationId, String idempotencyKey);
+
     Flux<Incident> findAll(UUID organisationId, Filter filter);
 
     /**

@@ -38,5 +38,10 @@ public record InitiateIncidentRequest(
         Set<UUID> relatedChangeIds,
 
         @Nullable
-        UUID requesterId
+        UUID requesterId,
+
+        /** Staff only: a repeated key (per organisation) answers with the incident the first call opened instead of opening another. */
+        @Nullable
+        @Size(max = 100, message = "Idempotency key must not exceed 100 characters")
+        String idempotencyKey
 ) {}

@@ -29,7 +29,7 @@ class IncidentMapperTest {
     private final UUID requesterId = UUID.randomUUID();
 
     private Incident incident() {
-        var request = new InitiateIncidentRequest("Switch down", "No link", Impact.HIGH, Urgency.HIGH, Set.of(UUID.randomUUID()), null, null);
+        var request = new InitiateIncidentRequest("Switch down", "No link", Impact.HIGH, Urgency.HIGH, Set.of(UUID.randomUUID()), null, null, null);
         return IncidentMapper.toDomain(request, UUID.randomUUID(), organisationId, requesterId, TARGETS, "op-1");
     }
 

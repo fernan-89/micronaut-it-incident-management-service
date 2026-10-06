@@ -35,6 +35,7 @@ public class IncidentIndexInitializer implements ApplicationEventListener<Startu
     static final String ASSIGNEE_INDEX = "organisationId_1_assigneeId_1";
     static final String REQUESTER_INDEX = "organisationId_1_requesterId_1";
     static final String ASSET_INDEX = "organisationId_1_affectedAssetIds_1";
+    static final String IDEMPOTENCY_INDEX = "organisationId_1_idempotencyKey_1";
 
     private static final Logger log = LoggerFactory.getLogger(IncidentIndexInitializer.class);
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
@@ -62,12 +63,18 @@ public class IncidentIndexInitializer implements ApplicationEventListener<Startu
         ensureIndex(ASSIGNEE_INDEX, new Document("organisationId", 1).append("assigneeId", 1));
         ensureIndex(REQUESTER_INDEX, new Document("organisationId", 1).append("requesterId", 1));
         ensureIndex(ASSET_INDEX, new Document("organisationId", 1).append("affectedAssetIds", 1));
+        ensureIndex(IDEMPOTENCY_INDEX, new Document("organisationId", 1).append("idempotencyKey", 1),
+                new IndexOptions().unique(true).partialFilterExpression(new Document("idempotencyKey", new Document("$type", "string"))));
     }
 
     private void ensureIndex(String indexName, Document keys) {
+        ensureIndex(indexName, keys, new IndexOptions());
+    }
+
+    private void ensureIndex(String indexName, Document keys, IndexOptions options) {
         try {
             Mono.from(mongoClient.getDatabase(database).getCollection(IncidentMongoRepositoryAdapter.COLLECTION_NAME)
-                    .createIndex(keys, new IndexOptions().name(indexName))).block(timeout);
+                    .createIndex(keys, options.name(indexName))).block(timeout);
             log.info("[MONGO_INDEXES] Ensured index [{}] on [{}.{}]", indexName, database, IncidentMongoRepositoryAdapter.COLLECTION_NAME);
         } catch (MongoTimeoutException e) {
             log.error("[MONGO_INDEXES] MongoDB unreachable; index [{}] was not created. Reason: {}", indexName, e.getMessage());

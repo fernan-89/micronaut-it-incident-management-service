@@ -83,7 +83,7 @@ class IncidentControllerTest {
     @Test
     @DisplayName("initiate answers 201 Created with the tenant, executor and role passed on")
     void initiate() {
-        var request = new InitiateIncidentRequest("t", "d", Impact.LOW, Urgency.LOW, null, null, UUID.randomUUID());
+        var request = new InitiateIncidentRequest("t", "d", Impact.LOW, Urgency.LOW, null, null, UUID.randomUUID(), null);
         when(initiateIncidentUseCase.execute(tenant, request, EXECUTOR, "OPERATOR")).thenReturn(Mono.just(sample()));
 
         var response = controller.initiate(tenantHeader, EXECUTOR, "OPERATOR", request).block();

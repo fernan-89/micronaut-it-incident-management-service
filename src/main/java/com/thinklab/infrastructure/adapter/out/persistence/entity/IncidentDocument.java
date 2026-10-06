@@ -47,7 +47,10 @@ public class IncidentDocument {
     private Instant createdAt;
     private Instant updatedAt;
     private List<AuditEntryDocument> auditTrail = new ArrayList<>();
+    private String idempotencyKey;
 
+    public String getIdempotencyKey() { return idempotencyKey; }
+    public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
     public UUID getOrganisationId() { return organisationId; }
